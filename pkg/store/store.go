@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: LicenseRef-ONF-Member-1.0
 
-package topo
+package store
 
 import (
 	"context"
@@ -260,7 +260,7 @@ func (s *atomixStore) Watch(ctx context.Context, aspectTypes []string, ch chan<-
 				}
 				ch <- uenib.Event{
 					Type: eventType,
-					Ue:   uenib.UE{ID: id, Aspects: map[string]*types.Any{any.TypeUrl: any}},
+					UE:   uenib.UE{ID: id, Aspects: map[string]*types.Any{any.TypeUrl: any}},
 				}
 			}
 		}

@@ -7,6 +7,9 @@ package manager
 
 import (
 	"github.com/onosproject/onos-lib-go/pkg/logging"
+	"github.com/onosproject/onos-lib-go/pkg/northbound"
+	service "github.com/onosproject/onos-uenib/pkg/northbound"
+	"github.com/onosproject/onos-uenib/pkg/store"
 )
 
 var log = logging.GetLogger("manager")
@@ -43,43 +46,43 @@ func (m *Manager) Run() {
 
 // Start starts the manager
 func (m *Manager) Start() error {
-	//err := m.startNorthboundServer()
-	//if err != nil {
-	//	return err
-	//}
+	err := m.startNorthboundServer()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // startNorthboundServer starts the northbound gRPC server
-//func (m *Manager) startNorthboundServer() error {
-//	s := northbound.NewServer(northbound.NewServerCfg(
-//		m.Config.CAPath,
-//		m.Config.KeyPath,
-//		m.Config.CertPath,
-//		int16(m.Config.GRPCPort),
-//		true,
-//		northbound.SecurityConfig{}))
-//
-//	topoStore, err := topostore.NewAtomixStore()
-//	if err != nil {
-//		return err
-//	}
-//
-//	s.AddService(logging.Service{})
-//	s.AddService(topo.NewService(topoStore))
-//
-//	doneCh := make(chan error)
-//	go func() {
-//		err := s.Serve(func(started string) {
-//			log.Info("Started NBI on ", started)
-//			close(doneCh)
-//		})
-//		if err != nil {
-//			doneCh <- err
-//		}
-//	}()
-//	return <-doneCh
-//}
+func (m *Manager) startNorthboundServer() error {
+	s := northbound.NewServer(northbound.NewServerCfg(
+		m.Config.CAPath,
+		m.Config.KeyPath,
+		m.Config.CertPath,
+		int16(m.Config.GRPCPort),
+		true,
+		northbound.SecurityConfig{}))
+
+	ueStore, err := store.NewAtomixStore()
+	if err != nil {
+		return err
+	}
+
+	s.AddService(logging.Service{})
+	s.AddService(service.NewService(ueStore))
+
+	doneCh := make(chan error)
+	go func() {
+		err := s.Serve(func(started string) {
+			log.Info("Started NBI on ", started)
+			close(doneCh)
+		})
+		if err != nil {
+			doneCh <- err
+		}
+	}()
+	return <-doneCh
+}
 
 // Close kills the channels and manager related objects
 func (m *Manager) Close() {
