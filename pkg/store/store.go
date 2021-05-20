@@ -85,11 +85,11 @@ type Store interface {
 	Delete(ctx context.Context, id uenib.ID, aspectTypes ...string) error
 
 	// List stream entities populated the requested aspects on the given channel.
-	List(ctx context.Context, aspectTypes []string, ch chan<- *uenib.UE, filters *uenib.Filters) error
+	List(ctx context.Context, aspectTypes []string, ch chan<- *uenib.UE) error
 
 	// Watch streams UE change notifications, with each UE populated with only the changed aspect.
 	// Only changes to the requested aspects will be forwarded.
-	Watch(ctx context.Context, aspectTypes []string, ch chan<- uenib.Event, filters *uenib.Filters, opts ...WatchOption) error
+	Watch(ctx context.Context, aspectTypes []string, ch chan<- uenib.Event, opts ...WatchOption) error
 }
 
 // WatchOption is a configuration option for Watch calls
@@ -199,7 +199,7 @@ func typesMap(aspectTypes []string) map[string]string {
 	return tm
 }
 
-func (s *atomixStore) List(ctx context.Context, aspectTypes []string, ch chan<- *uenib.UE, filters *uenib.Filters) error {
+func (s *atomixStore) List(ctx context.Context, aspectTypes []string, ch chan<- *uenib.UE) error {
 	mapCh := make(chan *_map.Entry)
 	if err := s.ueAspects.Entries(ctx, mapCh); err != nil {
 		return errors.FromAtomix(err)
@@ -230,7 +230,7 @@ func (s *atomixStore) List(ctx context.Context, aspectTypes []string, ch chan<- 
 	return nil
 }
 
-func (s *atomixStore) Watch(ctx context.Context, aspectTypes []string, ch chan<- uenib.Event, filters *uenib.Filters, opts ...WatchOption) error {
+func (s *atomixStore) Watch(ctx context.Context, aspectTypes []string, ch chan<- uenib.Event, opts ...WatchOption) error {
 	watchOpts := make([]_map.WatchOption, 0)
 	for _, opt := range opts {
 		watchOpts = opt.apply(watchOpts)

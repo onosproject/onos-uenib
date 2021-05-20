@@ -45,13 +45,12 @@ type Server struct {
 // Create a new UE entity and its initial set of aspects.
 func (s *Server) Create(ctx context.Context, req *uenib.CreateRequest) (*uenib.CreateResponse, error) {
 	log.Infof("Received CreateRequest %+v", req)
-	ue := req.UE
-	err := s.ues.Create(ctx, &ue)
+	err := s.ues.Create(ctx, &req.UE)
 	if err != nil {
 		log.Warnf("CreateRequest %+v failed: %v", req, err)
 		return nil, errors.Status(err).Err()
 	}
-	res := &uenib.CreateResponse{UE: ue}
+	res := &uenib.CreateResponse{}
 	log.Infof("Sending CreateResponse %+v", res)
 	return res, nil
 }
@@ -77,7 +76,7 @@ func (s *Server) Update(ctx context.Context, req *uenib.UpdateRequest) (*uenib.U
 		log.Warnf("UpdateRequest %+v failed: %v", req, err)
 		return nil, errors.Status(err).Err()
 	}
-	res := &uenib.UpdateResponse{UE: req.UE}
+	res := &uenib.UpdateResponse{}
 	log.Infof("Sending UpdateResponse %+v", res)
 	return res, nil
 }
@@ -99,7 +98,7 @@ func (s *Server) Delete(ctx context.Context, req *uenib.DeleteRequest) (*uenib.D
 func (s *Server) List(req *uenib.ListRequest, server uenib.UEService_ListServer) error {
 	log.Infof("Received ListRequest %+v", req)
 	ch := make(chan *uenib.UE)
-	err := s.ues.List(server.Context(), req.AspectTypes, ch, req.Filters)
+	err := s.ues.List(server.Context(), req.AspectTypes, ch)
 	if err != nil {
 		log.Warnf("ListRequest %+v failed: %v", req, err)
 		return errors.Status(err).Err()
@@ -124,7 +123,7 @@ func (s *Server) Watch(req *uenib.WatchRequest, server uenib.UEService_WatchServ
 	}
 
 	ch := make(chan uenib.Event)
-	if err := s.ues.Watch(server.Context(), req.AspectTypes, ch, req.Filters, watchOpts...); err != nil {
+	if err := s.ues.Watch(server.Context(), req.AspectTypes, ch, watchOpts...); err != nil {
 		log.Warnf("WatchTerminationsRequest %+v failed: %v", req, err)
 		return errors.Status(err).Err()
 	}
