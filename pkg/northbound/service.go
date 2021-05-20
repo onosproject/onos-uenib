@@ -42,71 +42,71 @@ type Server struct {
 	ues store.Store
 }
 
-// Create a new UE entity and its initial set of aspects.
-func (s *Server) Create(ctx context.Context, req *uenib.CreateRequest) (*uenib.CreateResponse, error) {
-	log.Infof("Received CreateRequest %+v", req)
+// CreateUE creates a new UE entity and its initial set of aspects.
+func (s *Server) CreateUE(ctx context.Context, req *uenib.CreateUERequest) (*uenib.CreateUEResponse, error) {
+	log.Infof("Received CreateUERequest %+v", req)
 	err := s.ues.Create(ctx, &req.UE)
 	if err != nil {
-		log.Warnf("CreateRequest %+v failed: %v", req, err)
+		log.Warnf("CreateUERequest %+v failed: %v", req, err)
 		return nil, errors.Status(err).Err()
 	}
-	res := &uenib.CreateResponse{}
-	log.Infof("Sending CreateResponse %+v", res)
+	res := &uenib.CreateUEResponse{}
+	log.Infof("Sending CreateUEResponse %+v", res)
 	return res, nil
 }
 
-// Get a UE entity populated with the requested aspects.
-func (s *Server) Get(ctx context.Context, req *uenib.GetRequest) (*uenib.GetResponse, error) {
-	log.Infof("Received GetRequest %+v", req)
+// GetUE retrieves a UE entity populated with the requested aspects.
+func (s *Server) GetUE(ctx context.Context, req *uenib.GetUERequest) (*uenib.GetUEResponse, error) {
+	log.Infof("Received GetUERequest %+v", req)
 	ue, err := s.ues.Get(ctx, req.ID, req.AspectTypes...)
 	if err != nil {
-		log.Warnf("GetRequest %+v failed: %v", req, err)
+		log.Warnf("GetUERequest %+v failed: %v", req, err)
 		return nil, errors.Status(err).Err()
 	}
-	res := &uenib.GetResponse{UE: *ue}
-	log.Infof("Sending GetResponse %+v", res)
+	res := &uenib.GetUEResponse{UE: *ue}
+	log.Infof("Sending GetUEResponse %+v", res)
 	return res, nil
 }
 
-// Update an existing UE entity populated with the requested aspects.
-func (s *Server) Update(ctx context.Context, req *uenib.UpdateRequest) (*uenib.UpdateResponse, error) {
-	log.Infof("Received UpdateRequest %+v", req)
+// UpdateUE updated an existing UE entity populated with the requested aspects.
+func (s *Server) UpdateUE(ctx context.Context, req *uenib.UpdateUERequest) (*uenib.UpdateUEResponse, error) {
+	log.Infof("Received UpdateUERequest %+v", req)
 	err := s.ues.Update(ctx, &req.UE)
 	if err != nil {
-		log.Warnf("UpdateRequest %+v failed: %v", req, err)
+		log.Warnf("UpdateUERequest %+v failed: %v", req, err)
 		return nil, errors.Status(err).Err()
 	}
-	res := &uenib.UpdateResponse{}
-	log.Infof("Sending UpdateResponse %+v", res)
+	res := &uenib.UpdateUEResponse{}
+	log.Infof("Sending UpdateUEResponse %+v", res)
 	return res, nil
 }
 
-// Delete the specified aspects of a UE entity.
-func (s *Server) Delete(ctx context.Context, req *uenib.DeleteRequest) (*uenib.DeleteResponse, error) {
-	log.Infof("Received DeleteRequest %+v", req)
+// DeleteUE deletes the specified aspects of a UE entity.
+func (s *Server) DeleteUE(ctx context.Context, req *uenib.DeleteUERequest) (*uenib.DeleteUEResponse, error) {
+	log.Infof("Received DeleteUERequest %+v", req)
 	err := s.ues.Delete(ctx, req.ID, req.AspectTypes...)
 	if err != nil {
-		log.Warnf("DeleteRequest %+v failed: %v", req, err)
+		log.Warnf("DeleteUERequest %+v failed: %v", req, err)
 		return nil, errors.Status(err).Err()
 	}
-	res := &uenib.DeleteResponse{}
-	log.Infof("Sending DeleteResponse %+v", res)
+	res := &uenib.DeleteUEResponse{}
+	log.Infof("Sending DeleteUEResponse %+v", res)
 	return res, nil
 }
 
-// List returns a stream of UE entities populated the requested aspects.
-func (s *Server) List(req *uenib.ListRequest, server uenib.UEService_ListServer) error {
-	log.Infof("Received ListRequest %+v", req)
+// ListUEs returns a stream of UE entities populated the requested aspects.
+func (s *Server) ListUEs(req *uenib.ListUERequest, server uenib.UEService_ListUEsServer) error {
+	log.Infof("Received ListUERequest %+v", req)
 	ch := make(chan *uenib.UE)
 	err := s.ues.List(server.Context(), req.AspectTypes, ch)
 	if err != nil {
-		log.Warnf("ListRequest %+v failed: %v", req, err)
+		log.Warnf("ListUERequest %+v failed: %v", req, err)
 		return errors.Status(err).Err()
 	}
 
-	log.Infof("Sending ListResponses")
+	log.Infof("Sending ListUEResponses")
 	for ue := range ch {
-		err := server.Send(&uenib.ListResponse{UE: *ue})
+		err := server.Send(&uenib.ListUEResponse{UE: *ue})
 		if err != nil {
 			return errors.Status(err).Err()
 		}
@@ -114,9 +114,9 @@ func (s *Server) List(req *uenib.ListRequest, server uenib.UEService_ListServer)
 	return nil
 }
 
-// Watch returns a stream of UE change notifications, with each UE populated with only the requested aspects.
-func (s *Server) Watch(req *uenib.WatchRequest, server uenib.UEService_WatchServer) error {
-	log.Infof("Received WatchRequest %+v", req)
+// WatchUEs returns a stream of UE change notifications, with each UE populated with only the requested aspects.
+func (s *Server) WatchUEs(req *uenib.WatchUERequest, server uenib.UEService_WatchUEsServer) error {
+	log.Infof("Received WatchUERequest %+v", req)
 	var watchOpts []store.WatchOption
 	if !req.Noreplay {
 		watchOpts = append(watchOpts, store.WithReplay())
@@ -124,7 +124,7 @@ func (s *Server) Watch(req *uenib.WatchRequest, server uenib.UEService_WatchServ
 
 	ch := make(chan uenib.Event)
 	if err := s.ues.Watch(server.Context(), req.AspectTypes, ch, watchOpts...); err != nil {
-		log.Warnf("WatchTerminationsRequest %+v failed: %v", req, err)
+		log.Warnf("WatchTerminationsUERequest %+v failed: %v", req, err)
 		return errors.Status(err).Err()
 	}
 
@@ -132,13 +132,13 @@ func (s *Server) Watch(req *uenib.WatchRequest, server uenib.UEService_WatchServ
 }
 
 // Stream is the ongoing stream for WatchTerminations request
-func (s *Server) Stream(server uenib.UEService_WatchServer, ch chan uenib.Event) error {
+func (s *Server) Stream(server uenib.UEService_WatchUEsServer, ch chan uenib.Event) error {
 	for event := range ch {
-		res := &uenib.WatchResponse{Event: event}
+		res := &uenib.WatchUEResponse{Event: event}
 
-		log.Infof("Sending WatchResponse %+v", res)
+		log.Infof("Sending WatchUEResponse %+v", res)
 		if err := server.Send(res); err != nil {
-			log.Warnf("WatchResponse %+v failed: %v", res, err)
+			log.Warnf("WatchUEResponse %+v failed: %v", res, err)
 			return err
 		}
 	}
