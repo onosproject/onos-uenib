@@ -237,7 +237,7 @@ func (s *atomixStore) Watch(ctx context.Context, aspectTypes []string, ch chan<-
 	}
 
 	mapCh := make(chan *_map.Event)
-	if err := s.ueAspects.Watch(context.Background(), mapCh, watchOpts...); err != nil {
+	if err := s.ueAspects.Watch(ctx, mapCh, watchOpts...); err != nil {
 		return errors.FromAtomix(err)
 	}
 
