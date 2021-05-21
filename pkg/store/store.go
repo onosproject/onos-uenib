@@ -68,7 +68,7 @@ func newLocalStore(address net.Address) (Store, error) {
 	}, nil
 }
 
-// Store stores topology information
+// Store stores UE information
 type Store interface {
 	io.Closer
 
@@ -162,7 +162,7 @@ func (s *atomixStore) Get(ctx context.Context, id uenib.ID, aspectTypes ...strin
 		return nil, errors.NewInvalid("ID cannot be empty")
 	}
 
-	ue := &uenib.UE{ID: id}
+	ue := &uenib.UE{ID: id, Aspects: map[string]*types.Any{}}
 	for _, aspectType := range aspectTypes {
 		entry, err := s.ueAspects.Get(ctx, aspectKey(ue.ID, aspectType))
 		if err != nil {
