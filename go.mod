@@ -3,7 +3,9 @@ module github.com/onosproject/onos-uenib
 go 1.14
 
 require (
-	github.com/atomix/go-client v0.4.1
+	github.com/atomix/atomix-go-client v0.5.16
+	github.com/atomix/atomix-go-framework v0.6.16 // indirect
+	github.com/atomix/go-client v0.4.1 // indirect
 	github.com/gogo/protobuf v1.3.2
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/onosproject/helmit v0.6.12 // indirect

@@ -6,10 +6,11 @@ package store
 
 import (
 	"context"
+	"github.com/atomix/atomix-go-client/pkg/atomix/test"
+	"github.com/atomix/atomix-go-client/pkg/atomix/test/rsm"
 	"github.com/gogo/protobuf/types"
 	topoapi "github.com/onosproject/onos-api/go/onos/topo"
 	"github.com/onosproject/onos-api/go/onos/uenib"
-	"github.com/onosproject/onos-lib-go/pkg/atomix"
 	"github.com/onosproject/onos-lib-go/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -17,13 +18,24 @@ import (
 )
 
 func TestTopoStore(t *testing.T) {
-	_, address := atomix.StartLocalNode()
+	test := test.NewTest(
+		rsm.NewProtocol(),
+		test.WithReplicas(1),
+		test.WithPartitions(1))
+	assert.NoError(t, test.Start())
+	defer test.Stop()
 
-	store1, err := newLocalStore(address)
+	client1, err := test.NewClient("node-1")
+	assert.NoError(t, err)
+
+	client2, err := test.NewClient("node-2")
+	assert.NoError(t, err)
+
+	store1, err := NewAtomixStore(client1)
 	assert.NoError(t, err)
 	defer store1.Close()
 
-	store2, err := newLocalStore(address)
+	store2, err := NewAtomixStore(client2)
 	assert.NoError(t, err)
 	defer store2.Close()
 
