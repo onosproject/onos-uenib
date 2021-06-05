@@ -23,7 +23,8 @@ var log = logging.GetLogger("store")
 
 // NewAtomixStore returns a new persistent Store
 func NewAtomixStore(client atomix.Client) (Store, error) {
-	ueAspects, err := client.GetMap(context.Background(), "onos-ue-aspects")
+	ueAspects, err := client.GetMap(context.Background(), "onos-uenib-objects")
+	log.Infof("da fuq %v", err)
 	if err != nil {
 		return nil, err
 	}
