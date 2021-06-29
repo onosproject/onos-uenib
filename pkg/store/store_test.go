@@ -41,6 +41,10 @@ func TestTopoStore(t *testing.T) {
 
 	aspectTypes := []string{"onos.topo.Location", "onos.uenib.CellInfo"}
 
+	elch := make(chan<- *uenib.UE)
+	err = store1.List(context.TODO(), aspectTypes, elch)
+	assert.NoError(t, err)
+
 	ch := make(chan uenib.Event)
 	err = store2.Watch(context.Background(), aspectTypes, ch)
 	assert.NoError(t, err)
