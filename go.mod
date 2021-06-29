@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/atomix/atomix-go-client v0.5.20
-	github.com/atomix/atomix-go-framework v0.7.0
+	github.com/atomix/atomix-go-framework v0.7.0 // indirect
 	github.com/atomix/go-client v0.4.1 // indirect
 	github.com/gogo/protobuf v1.3.2
 	github.com/mattn/go-colorable v0.1.2 // indirect
