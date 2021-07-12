@@ -94,7 +94,12 @@ func (s *atomixStore) Create(ctx context.Context, ue *uenib.UE) error {
 
 		_, err := s.ueAspects.Put(ctx, key, aspect.Value, _map.IfNotSet())
 		if err != nil {
-			log.Errorf("Failed to create UE aspect %s: %s", key, err)
+			logFmt := "Failed to create UE aspect %s: %s"
+			if !errors.IsCanceled(err) {
+				log.Errorf(logFmt, key, err)
+			} else {
+				log.Warnf(logFmt, key, err)
+			}
 			return errors.FromAtomix(err)
 		}
 	}
@@ -113,7 +118,12 @@ func (s *atomixStore) Update(ctx context.Context, ue *uenib.UE) error {
 
 		_, err := s.ueAspects.Put(ctx, key, aspect.Value)
 		if err != nil {
-			log.Errorf("Failed to update UE aspect %s: %s", key, err)
+			logFmt := "Failed to update UE aspect %s: %s"
+			if !errors.IsCanceled(err) {
+				log.Errorf(logFmt, key, err)
+			} else {
+				log.Warnf(logFmt, key, err)
+			}
 			return errors.FromAtomix(err)
 		}
 	}
