@@ -119,7 +119,7 @@ func (s *atomixStore) Update(ctx context.Context, ue *uenib.UE) error {
 		if err != nil {
 			err = errors.FromAtomix(err)
 			if !atomixerrors.IsCanceled(err) && !atomixerrors.IsConflict(err) {
-				log.Errorf("Failed to update UE aspect %s: %s", key, err)
+				log.Errorf("Failed to update UE aspect %s: %v", key, err)
 			}
 			return err
 		}
