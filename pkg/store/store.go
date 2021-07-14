@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/atomix/atomix-go-client/pkg/atomix"
-	atomixerrors "github.com/atomix/atomix-go-framework/pkg/atomix/errors"
 	"github.com/gogo/protobuf/types"
 	"github.com/onosproject/onos-lib-go/pkg/errors"
 	"github.com/onosproject/onos-lib-go/pkg/logging"
@@ -96,7 +95,7 @@ func (s *atomixStore) Create(ctx context.Context, ue *uenib.UE) error {
 		_, err := s.ueAspects.Put(ctx, key, aspect.Value, _map.IfNotSet())
 		if err != nil {
 			err = errors.FromAtomix(err)
-			if !atomixerrors.IsCanceled(err) && !atomixerrors.IsConflict(err) {
+			if !errors.IsCanceled(err) && !errors.IsConflict(err) {
 				log.Errorf("Failed to create UE aspect %s: %s", key, err)
 			}
 			return err
@@ -118,7 +117,7 @@ func (s *atomixStore) Update(ctx context.Context, ue *uenib.UE) error {
 		_, err := s.ueAspects.Put(ctx, key, aspect.Value)
 		if err != nil {
 			err = errors.FromAtomix(err)
-			if !atomixerrors.IsCanceled(err) && !atomixerrors.IsConflict(err) {
+			if !errors.IsCanceled(err) && !errors.IsConflict(err) {
 				log.Errorf("Failed to update UE aspect %s: %v", key, err)
 			}
 			return err
