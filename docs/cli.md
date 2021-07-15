@@ -14,10 +14,28 @@ please see the [CLI documentation](https://github.com/onosproject/onos-cli/blob/
 ## Examples
 Here are some concrete examples of usage:
 
-List `CellInfo` of all UES.
+List `CellInfo` and `SubscriberData` of all UEs, that have these aspects.
 ```bash
 $ onos uenib get ues --aspect onos.uenib.CellInfo
 ...
 ```
 
-_MORE TODO_
+Create a new `CustomData` aspect for a UE:
+```bash
+$ onos uenib create ue 9182838476 --aspect operator.CustomData='{"foo": "bar", "special": true}'
+```
+
+Show all aspect data in verbose form for a given UE: (_Not implemented yet!_)
+```bash
+$ onos uenib get ue 9182838476 --verbose
+```
+
+Watch all changes in the UE NIB, without replay of existing UE information:
+```bash
+$ onos uenib watch ues --no-replay
+```
+
+Delete `CustomData` aspect for a specific UE:
+```bash
+$ onos uenib delete ue 9182838476 --aspect operator.CustomData
+```
