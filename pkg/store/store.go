@@ -191,6 +191,16 @@ func (s *atomixStore) Delete(ctx context.Context, id uenib.ID, aspectTypes ...st
 		return errors.NewInvalid("ID cannot be empty")
 	}
 
+	if len(aspectTypes) == 0 {
+		s.idToAspectsLock.RLock()
+		aspects, ok := s.idToAspects[id]
+		if ok {
+			for k := range aspects {
+				aspectTypes = append(aspectTypes, k)
+			}
+		}
+		s.idToAspectsLock.RUnlock()
+	}
 	for _, aspectType := range aspectTypes {
 		key := aspectKey(id, aspectType)
 		log.Infof("Deleting UE aspect %s", key)
