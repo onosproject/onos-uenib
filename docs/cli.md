@@ -25,7 +25,7 @@ Create a new `CustomData` aspect for a UE:
 $ onos uenib create ue 9182838476 --aspect operator.CustomData='{"foo": "bar", "special": true}'
 ```
 
-Show all aspect data in verbose form for a given UE: (_Not implemented yet!_)
+Show all aspect data in verbose form for a given UE:
 ```bash
 $ onos uenib get ue 9182838476 --verbose
 ```

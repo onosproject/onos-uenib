@@ -34,7 +34,6 @@ aspectTypes := []string{"onos.uenib.CellInfo", "operator.SubscriberData"}
 response, err := client.GetUE(ctx, &uenib.GetUERequest{ID: ueID, AspectTypes: aspectTypes})
 ```
 
-_Note: The following has not yet been implemented!_
 
 To return all aspects associated with a UE, simply omit the `AspectTypes` from the request:
 ```go
