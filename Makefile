@@ -41,7 +41,7 @@ golang-ci: # @HELP install golang-ci if not present
 	golangci-lint --version || curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b `go env GOPATH`/bin v1.42.0
 
 license_check: build-tools # @HELP examine and ensure license headers exist
-	./../build-tools/licensing/boilerplate.py -v --rootdir=${CURDIR} --boilerplate LicenseRef-ONF-Member-1.0
+	./../build-tools/licensing/boilerplate.py -v --rootdir=${CURDIR} --boilerplate LicenseRef-ONF-Member-Only-1.0
 
 onos-uenib-docker: # @HELP build onos-uenib base Docker image
 	@go mod vendor
