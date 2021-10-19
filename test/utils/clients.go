@@ -7,7 +7,7 @@ package utils
 import (
 	"context"
 	"github.com/onosproject/onos-api/go/onos/uenib"
-	"github.com/onosproject/onos-lib-go/pkg/southbound"
+	"github.com/onosproject/onos-lib-go/pkg/grpc/retry"
 	"github.com/onosproject/onos-ric-sdk-go/pkg/e2/creds"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -30,7 +30,7 @@ func ConnectUeNibServiceHost() (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	}
-	opts = append(opts, grpc.WithUnaryInterceptor(southbound.RetryingUnaryClientInterceptor()))
+	opts = append(opts, grpc.WithUnaryInterceptor(retry.RetryingUnaryClientInterceptor()))
 	return grpc.DialContext(context.Background(), UeNibServiceAddress, opts...)
 }
 
