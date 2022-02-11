@@ -22,7 +22,7 @@ test: build deps license_check_apache linters
 	go test -race github.com/onosproject/onos-uenib/...
 
 jenkins-test: build deps license_check_apache linters # @HELP run the unit tests and source code validation producing a junit style report for Jenkins
-	TEST_PACKAGES=github.com/onosproject/onos-uenib/pkg/... ./../build-tools/build/jenkins/make-unit
+	TEST_PACKAGES=github.com/onosproject/onos-uenib/pkg/... ./build/build-tools/build/jenkins/make-unit
 
 helmit-uenib: integration-test-namespace # @HELP run helmit tests locally
 	helmit test -n test ./cmd/onos-uenib-tests --suite uenib
@@ -46,12 +46,12 @@ kind: images
 all: build images
 
 publish: # @HELP publish version on github and dockerhub
-	./../build-tools/publish-version ${VERSION} onosproject/onos-uenib
+	./build/build-tools/publish-version ${VERSION} onosproject/onos-uenib
 
 jenkins-publish: build-tools jenkins-tools # @HELP Jenkins calls this to publish artifacts
 	./build/bin/push-images
-	../build-tools/release-merge-commit
-	../build-tools/build/docs/push-docs
+	./build/build-tools/release-merge-commit
+	./build/build-tools/build/docs/push-docs
 
 clean:: # @HELP remove all the build artifacts
 	rm -rf ./build/_output ./vendor ./cmd/onos-uenib/onos-uenib ./cmd/dummy/dummy
