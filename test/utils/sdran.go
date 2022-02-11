@@ -45,6 +45,7 @@ func CreateSdranRelease(c *input.Context) (*helm.HelmRelease, error) {
 		Set("import.onos-config.enabled", false).
 		Set("import.onos-topo.enabled", false).
 		Set("import.onos-e2t.enabled", false).
+		Set("import.onos-a1t.enabled", false).
 		Set("import.onos-cli.enabled", false).
 		Set("onos-uenib.image.tag", "latest").
 		Set("global.image.registry", registry)
