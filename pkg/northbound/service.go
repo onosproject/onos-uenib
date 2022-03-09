@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+
 	"github.com/onosproject/onos-lib-go/pkg/errors"
 
 	"github.com/onosproject/onos-api/go/onos/uenib"
@@ -15,7 +16,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var log = logging.GetLogger("northbound")
+var log = logging.GetLogger()
 
 // NewService returns a new UE-NIB Service
 func NewService(store store.Store) northbound.Service {

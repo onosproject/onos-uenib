@@ -20,7 +20,7 @@ import (
 	"github.com/onosproject/onos-lib-go/pkg/logging"
 )
 
-var log = logging.GetLogger("store")
+var log = logging.GetLogger()
 
 // NewAtomixStore returns a new persistent Store
 func NewAtomixStore(client atomix.Client) (Store, error) {
