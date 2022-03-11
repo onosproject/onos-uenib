@@ -1,8 +1,8 @@
-// SPDX-FileCopyrightText: 2021-present Open Networking Foundation <info@opennetworking.org>
+// SPDX-FileCopyrightText: 2020-present Open Networking Foundation <info@opennetworking.org>
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Package manager is is the main coordinator for the ONOS UE-NIB subsystem.
+// Package manager is the main coordinator for the ONOS UE-NIB subsystem.
 package manager
 
 import (
