@@ -25,11 +25,11 @@ build:
 	CGO_ENABLED=1 go build -o build/_output/onos-uenib ./cmd/onos-uenib
 
 test: # @HELP run the unit tests and source code validation producing a golang style report
-test: mod-lint build license_check_apache linters reuse-lint
+test: mod-lint build license_check_apache linters license
 	go test -race github.com/onosproject/onos-uenib/...
 
 jenkins-test: # @HELP run the unit tests and source code validation producing a junit style report for Jenkins
-jenkins-test: mod-lint build license_check_apache linters reuse-lint
+jenkins-test: mod-lint build license_check_apache linters license
 	TEST_PACKAGES=github.com/onosproject/onos-uenib/pkg/... ./build/build-tools/build/jenkins/make-unit
 
 helmit-uenib: integration-test-namespace # @HELP run helmit tests locally
