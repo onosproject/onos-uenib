@@ -13,15 +13,23 @@ ONOS_PROTOC_VERSION := v0.6.3
 build-tools:=$(shell if [ ! -d "./build/build-tools" ]; then cd build && git clone https://github.com/onosproject/build-tools.git; fi)
 include ./build/build-tools/make/onf-common.mk
 
+mod-update: # @HELP Download the dependencies to the vendor folder
+	go mod tidy
+	go mod vendor
+mod-lint: mod-update # @HELP ensure that the required dependencies are in place
+	# dependencies are vendored, but not committed, go.sum is the only thing we need to check
+	bash -c "diff -u <(echo -n) <(git diff go.sum)"
+
 build: # @HELP build the Go binaries and run all validations (default)
 build:
 	CGO_ENABLED=1 go build -o build/_output/onos-uenib ./cmd/onos-uenib
 
 test: # @HELP run the unit tests and source code validation producing a golang style report
-test: build deps license_check_apache linters
+test: mod-lint build license_check_apache linters license
 	go test -race github.com/onosproject/onos-uenib/...
 
-jenkins-test: build deps license_check_apache linters # @HELP run the unit tests and source code validation producing a junit style report for Jenkins
+jenkins-test: # @HELP run the unit tests and source code validation producing a junit style report for Jenkins
+jenkins-test: mod-lint build license_check_apache linters license
 	TEST_PACKAGES=github.com/onosproject/onos-uenib/pkg/... ./build/build-tools/build/jenkins/make-unit
 
 helmit-uenib: integration-test-namespace # @HELP run helmit tests locally
