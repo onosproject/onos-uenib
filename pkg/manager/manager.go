@@ -6,9 +6,7 @@
 package manager
 
 import (
-	"os"
-
-	"github.com/atomix/atomix-go-client/pkg/atomix"
+	"github.com/atomix/go-sdk/pkg/client"
 	"github.com/onosproject/onos-lib-go/pkg/logging"
 	"github.com/onosproject/onos-lib-go/pkg/northbound"
 	service "github.com/onosproject/onos-uenib/pkg/northbound"
@@ -66,14 +64,14 @@ func (m *Manager) startNorthboundServer() error {
 		true,
 		northbound.SecurityConfig{}))
 
-	atomixClient := atomix.NewClient(atomix.WithClientID(os.Getenv("POD_NAME")))
+	atomixClient := client.NewClient()
+	//atomixClient := atomix.NewClient(atomix.WithClientID(os.Getenv("POD_NAME")))
 
 	ueStore, err := store.NewAtomixStore(atomixClient)
 	if err != nil {
 		log.Errorf("Unable to create store: %v", err)
 		return err
 	}
-
 	s.AddService(logging.Service{})
 	s.AddService(service.NewService(ueStore))
 

@@ -7,13 +7,14 @@ package store
 import (
 	"context"
 	"fmt"
+	"github.com/atomix/go-sdk/pkg/generic"
+	"github.com/atomix/go-sdk/pkg/primitive"
+	"github.com/google/uuid"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/atomix/atomix-go-client/pkg/atomix"
-	_map "github.com/atomix/atomix-go-client/pkg/atomix/map"
+	_map "github.com/atomix/go-sdk/pkg/primitive/map"
 	"github.com/gogo/protobuf/types"
 	"github.com/onosproject/onos-api/go/onos/uenib"
 	"github.com/onosproject/onos-lib-go/pkg/errors"
@@ -23,40 +24,32 @@ import (
 var log = logging.GetLogger()
 
 // NewAtomixStore returns a new persistent Store
-func NewAtomixStore(client atomix.Client) (Store, error) {
-	ueAspects, err := client.GetMap(context.Background(), "onos-uenib-objects")
+func NewAtomixStore(client primitive.Client) (Store, error) {
+	ueAspects, err := _map.NewBuilder[uenib.ID, *uenib.UE](client, "onos-uenib-objects").
+		Tag("onos-uenib", "objects").
+		Codec(generic.Proto[*uenib.UE](&uenib.UE{})).
+		Get(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, errors.FromAtomix(err)
 	}
 
 	store := &atomixStore{
-		ueAspects:       ueAspects,
-		idToAspects:     make(map[uenib.ID]map[string]bool),
-		idToAspectsLock: sync.RWMutex{},
+		ueAspects: ueAspects,
+		//idToAspects:     make(map[uenib.ID]map[string]bool),
+		//idToAspectsLock: sync.RWMutex{},
+		cache:    make(map[uenib.ID]uenib.UE),
+		watchers: make(map[uuid.UUID]chan<- uenib.Event),
 	}
 
-	// watch the atomixStore for changes
-	// atomixStore consits of a map of ueIDs/ueAspects as keys and values containing the aspect values
-	// therefore, we only need to watch the add, remove, and replay to keep proper records of
-	// which aspects are present in the map for each ueID
-	mapCh := make(chan _map.Event)
-	if err := ueAspects.Watch(context.Background(), mapCh, make([]_map.WatchOption, 0)...); err != nil {
-		// log.Errorf("Failed to start indexer: %s", err)
+	events, err := ueAspects.Events(context.Background())
+	if err != nil {
 		return nil, errors.FromAtomix(err)
 	}
-	go func() {
-		for event := range mapCh {
-			id, any := decodeAspect(event.Entry)
-			switch event.Type {
-			case _map.EventReplay:
-				store.registerAspect(id, any.TypeUrl)
-			case _map.EventInsert:
-				store.registerAspect(id, any.TypeUrl)
-			case _map.EventRemove:
-				store.unregisterAspect(id, any.TypeUrl)
-			}
-		}
-	}()
+	entries, err := ueAspects.List(context.Background())
+	if err != nil {
+		return nil, errors.FromAtomix(err)
+	}
+	go store.watchStoreEvents(entries, events)
 	return store, nil
 }
 
@@ -86,31 +79,111 @@ type Store interface {
 
 // WatchOption is a configuration option for Watch calls
 type WatchOption interface {
-	apply([]_map.WatchOption) []_map.WatchOption
+	apply(*watchOptions)
 }
 
 // watchReplyOption is an option to replay events on watch
 type watchReplayOption struct {
+	replay bool
 }
 
-func (o watchReplayOption) apply(opts []_map.WatchOption) []_map.WatchOption {
-	return append(opts, _map.WithReplay())
+func (o watchReplayOption) apply(opts *watchOptions) {
+	opts.replay = o.replay
 }
 
 // WithReplay returns a WatchOption that replays past changes
 func WithReplay() WatchOption {
-	return watchReplayOption{}
+	return watchReplayOption{true}
+}
+
+type watchOptions struct {
+	replay bool
 }
 
 // atomixStore is the object implementation of the Store
 type atomixStore struct {
-	ueAspects       _map.Map
-	idToAspects     map[uenib.ID]map[string]bool
-	idToAspectsLock sync.RWMutex
+	ueAspects _map.Map[uenib.ID, *uenib.UE]
+	cache     map[uenib.ID]uenib.UE
+	cacheMu   sync.RWMutex
+	//idToAspects     map[uenib.ID]map[string]bool
+	//idToAspectsLock sync.RWMutex
+	watchers   map[uuid.UUID]chan<- uenib.Event
+	watchersMu sync.RWMutex
 }
 
-func aspectKey(id uenib.ID, aspectType string) string {
-	return fmt.Sprintf("%s/%s", id, aspectType)
+//func aspectKey(id uenib.ID, aspectType string) string {
+//	return fmt.Sprintf("%s/%s", id, aspectType)
+//}
+
+func (s *atomixStore) watchStoreEvents(entries _map.EntryStream[uenib.ID, *uenib.UE], events _map.EventStream[uenib.ID, *uenib.UE]) {
+	for {
+		entry, err := entries.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Errorf(err.Error())
+			continue
+		}
+
+		ue := entry.Value
+
+		s.cacheMu.Lock()
+		s.cache[ue.ID] = *ue
+		s.cacheMu.Unlock()
+
+		s.watchersMu.RLock()
+		for _, watcher := range s.watchers {
+			watcher <- uenib.Event{
+				Type: uenib.EventType_NONE,
+				UE:   *ue,
+			}
+		}
+		s.watchersMu.RUnlock()
+	}
+
+	for {
+		event, err := events.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Errorf(err.Error())
+			continue
+		}
+
+		var eventType uenib.EventType
+		var ue *uenib.UE
+		switch e := event.(type) {
+		case *_map.Inserted[uenib.ID, *uenib.UE]:
+			ue = e.Entry.Value
+			eventType = uenib.EventType_ADDED
+			s.cacheMu.Lock()
+			s.cache[ue.ID] = *ue
+			s.cacheMu.Unlock()
+		case *_map.Updated[uenib.ID, *uenib.UE]:
+			ue = e.NewEntry.Value
+			eventType = uenib.EventType_UPDATED
+			s.cacheMu.Lock()
+			s.cache[ue.ID] = *ue
+			s.cacheMu.Unlock()
+		case *_map.Removed[uenib.ID, *uenib.UE]:
+			ue = e.Entry.Value
+			eventType = uenib.EventType_REMOVED
+			s.cacheMu.Lock()
+			s.cache[ue.ID] = *ue
+			s.cacheMu.Unlock()
+		}
+
+		s.watchersMu.RLock()
+		for _, watcher := range s.watchers {
+			watcher <- uenib.Event{
+				Type: eventType,
+				UE:   *ue,
+			}
+		}
+		s.watchersMu.RUnlock()
+	}
 }
 
 func (s *atomixStore) Create(ctx context.Context, ue *uenib.UE) error {
@@ -118,18 +191,15 @@ func (s *atomixStore) Create(ctx context.Context, ue *uenib.UE) error {
 		return errors.NewInvalid("ID cannot be empty")
 	}
 
-	for _, aspect := range ue.Aspects {
-		key := aspectKey(ue.ID, aspect.TypeUrl)
-		log.Infof("Creating UE aspect %s", key)
-
-		_, err := s.ueAspects.Put(ctx, key, aspect.Value, _map.IfNotSet())
-		if err != nil {
-			err = errors.FromAtomix(err)
-			if !errors.IsCanceled(err) && !errors.IsConflict(err) {
-				log.Errorf("Failed to create UE aspect %s: %s", key, err)
-			}
-			return err
+	_, err := s.ueAspects.Insert(ctx, ue.ID, ue)
+	if err != nil {
+		err = errors.FromAtomix(err)
+		if !errors.IsAlreadyExists(err) {
+			log.Errorf("Failed to create UE %+v: %+v", ue, err)
+		} else {
+			log.Warnf("Failed to create UE %+v: %+v", ue, err)
 		}
+		return err
 	}
 
 	return nil
@@ -140,18 +210,15 @@ func (s *atomixStore) Update(ctx context.Context, ue *uenib.UE) error {
 		return errors.NewInvalid("ID cannot be empty")
 	}
 
-	for _, aspect := range ue.Aspects {
-		key := aspectKey(ue.ID, aspect.TypeUrl)
-		log.Infof("Updating UE aspect %s", key)
-
-		_, err := s.ueAspects.Put(ctx, key, aspect.Value)
-		if err != nil {
-			err = errors.FromAtomix(err)
-			if !errors.IsCanceled(err) && !errors.IsConflict(err) {
-				log.Errorf("Failed to update UE aspect %s: %v", key, err)
-			}
-			return err
+	_, err := s.ueAspects.Update(ctx, ue.ID, ue)
+	if err != nil {
+		err = errors.FromAtomix(err)
+		if !errors.IsNotFound(err) && !errors.IsConflict(err) {
+			log.Errorf("Failed to update sub %+v: %+v", ue, err)
+		} else {
+			log.Warnf("Failed to update sub %+v: %+v", ue, err)
 		}
+		return err
 	}
 
 	return nil
@@ -162,28 +229,37 @@ func (s *atomixStore) Get(ctx context.Context, id uenib.ID, aspectTypes ...strin
 		return nil, errors.NewInvalid("ID cannot be empty")
 	}
 
+	entry, err := s.ueAspects.Get(ctx, id)
+	if err != nil {
+		err = errors.FromAtomix(err)
+		if !errors.IsNotFound(err) {
+			log.Errorf("Failed to get UE %+v: %+v", id, err)
+		} else {
+			log.Warnf("Failed to get UE %+v: %+v", id, err)
+		}
+		return nil, err
+	}
 	ue := &uenib.UE{ID: id, Aspects: map[string]*types.Any{}}
-
-	// If aspect types has 0 length, then use store to get all aspects
 	if len(aspectTypes) == 0 {
-		s.idToAspectsLock.RLock()
-		aspects, ok := s.idToAspects[id]
-		if ok {
-			for k := range aspects {
-				aspectTypes = append(aspectTypes, k)
-			}
-		}
-		s.idToAspectsLock.RUnlock()
-	}
-	for _, aspectType := range aspectTypes {
-		entry, err := s.ueAspects.Get(ctx, aspectKey(ue.ID, aspectType))
-		if err != nil {
-			return nil, errors.FromAtomix(err)
-		}
-		ue.Aspects[aspectType] = &types.Any{TypeUrl: aspectType, Value: entry.Value}
+		return entry.Value, nil
 	}
 
+	for _, aspectType := range aspectTypes {
+		if _, ok := entry.Value.Aspects[aspectType]; !ok {
+			return nil, errors.FromAtomix(fmt.Errorf("there is no aspect type %+v", aspectType))
+		}
+		ue.Aspects[aspectType] = entry.Value.Aspects[aspectType]
+	}
 	return ue, nil
+}
+
+func hasAspectTypes(aspectType string, aspectTypes []string) bool {
+	for _, t := range aspectTypes {
+		if aspectType == t {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *atomixStore) Delete(ctx context.Context, id uenib.ID, aspectTypes ...string) error {
@@ -192,136 +268,176 @@ func (s *atomixStore) Delete(ctx context.Context, id uenib.ID, aspectTypes ...st
 	}
 
 	if len(aspectTypes) == 0 {
-		s.idToAspectsLock.RLock()
-		aspects, ok := s.idToAspects[id]
-		if ok {
-			for k := range aspects {
-				aspectTypes = append(aspectTypes, k)
-			}
-		}
-		s.idToAspectsLock.RUnlock()
-	}
-	for _, aspectType := range aspectTypes {
-		key := aspectKey(id, aspectType)
-		log.Infof("Deleting UE aspect %s", key)
-		_, err := s.ueAspects.Remove(ctx, key)
+		_, err := s.ueAspects.Remove(ctx, id)
 		if err != nil {
-			log.Errorf("Failed to delete UE aspect %s: %s", key, err)
-			return errors.FromAtomix(err)
+			err = errors.FromAtomix(err)
+			if !errors.IsNotFound(err) && !errors.IsConflict(err) {
+				log.Errorf("Failed to delete ue %+v: %+v", id, err)
+			} else {
+				log.Warnf("Failed to delete ue %+v: %+v", id, err)
+			}
+			return err
+		}
+		return nil
+	}
+
+	entry, err := s.ueAspects.Get(ctx, id)
+	if err != nil {
+		err = errors.FromAtomix(err)
+		if !errors.IsNotFound(err) {
+			log.Errorf("Failed to get UE %+v: %+v", id, err)
+		} else {
+			log.Warnf("Failed to get UE %+v: %+v", id, err)
+		}
+		return err
+	}
+
+	ue := &uenib.UE{ID: id, Aspects: map[string]*types.Any{}}
+	for k, v := range entry.Value.Aspects {
+		if !hasAspectTypes(k, aspectTypes) {
+			ue.Aspects[k] = v
 		}
 	}
-	return nil
-}
 
-func typesMap(aspectTypes []string) map[string]string {
-	tm := map[string]string{}
-	for _, t := range aspectTypes {
-		tm[t] = t
+	if len(ue.Aspects) == 0 {
+		_, err = s.ueAspects.Remove(ctx, id)
+		if err != nil {
+			err = errors.FromAtomix(err)
+			if !errors.IsNotFound(err) && !errors.IsConflict(err) {
+				log.Errorf("Failed to delete ue %+v: %+v", id, err)
+			} else {
+				log.Warnf("Failed to delete ue %+v: %+v", id, err)
+			}
+			return err
+		}
+		return nil
 	}
-	return tm
+
+	return s.Update(ctx, ue)
 }
 
 func (s *atomixStore) List(ctx context.Context, aspectTypes []string, ch chan<- *uenib.UE) error {
-	mapCh := make(chan _map.Entry)
-	if err := s.ueAspects.Entries(ctx, mapCh); err != nil {
+	list, err := s.ueAspects.List(ctx)
+	if err != nil {
 		return errors.FromAtomix(err)
 	}
 
 	go func() {
-		// TODO: Consider more efficient implementation
-		ues := map[uenib.ID]*uenib.UE{}
-
-		// if there are now types specified, return everything in the store
-		addAnyway := len(aspectTypes) == 0
-
-		relevantTypes := typesMap(aspectTypes)
-		for entry := range mapCh {
-			id, any := decodeAspect(entry)
-			if _, ok := relevantTypes[any.TypeUrl]; ok || addAnyway {
-				if ue, ok := ues[id]; ok {
-					ue.Aspects[any.TypeUrl] = any
+		for {
+			entry, err := list.Next()
+			if err == io.EOF {
+				close(ch)
+				return
+			}
+			if err != nil {
+				log.Errorf(err.Error())
+				continue
+			}
+			ue := &uenib.UE{ID: entry.Value.ID, Aspects: map[string]*types.Any{}}
+			for _, aspectType := range aspectTypes {
+				if v, ok := entry.Value.Aspects[aspectType]; ok {
+					ue.Aspects[aspectType] = v
 				} else {
-					ues[id] = &uenib.UE{ID: id, Aspects: map[string]*types.Any{any.TypeUrl: any}}
+					log.Warnf("aspect type %+v is not defined in UE %+v", aspectType, *entry.Value)
 				}
 			}
-		}
 
-		for _, ue := range ues {
-			ch <- ue
+			ch <- entry.Value
 		}
-		close(ch)
 	}()
 
 	return nil
 }
 
 func (s *atomixStore) Watch(ctx context.Context, aspectTypes []string, ch chan<- uenib.Event, opts ...WatchOption) error {
-	watchOpts := make([]_map.WatchOption, 0)
+	var watchOpts watchOptions
 	for _, opt := range opts {
-		watchOpts = opt.apply(watchOpts)
+		opt.apply(&watchOpts)
 	}
 
-	mapCh := make(chan _map.Event)
-	if err := s.ueAspects.Watch(ctx, mapCh, watchOpts...); err != nil {
-		return errors.FromAtomix(err)
-	}
+	// create separate channel for replay and watch event
+	replayCh := make(chan uenib.UE)
+	eventCh := make(chan uenib.Event)
 
 	go func() {
 		defer close(ch)
-		relevantTypes := typesMap(aspectTypes)
-		for event := range mapCh {
-			id, any := decodeAspect(event.Entry)
-			if _, ok := relevantTypes[any.TypeUrl]; ok {
-				var eventType uenib.EventType
-				switch event.Type {
-				case _map.EventReplay:
-					eventType = uenib.EventType_NONE
-				case _map.EventInsert:
-					eventType = uenib.EventType_ADDED
-				case _map.EventRemove:
-					eventType = uenib.EventType_REMOVED
-				case _map.EventUpdate:
-					eventType = uenib.EventType_UPDATED
-				default:
-					eventType = uenib.EventType_UPDATED
+
+	replayLoop:
+		// process the replay channel first
+		for {
+			select {
+			case ue, ok := <-replayCh:
+				if !ok {
+					break replayLoop
 				}
+
 				ch <- uenib.Event{
-					Type: eventType,
-					UE:   uenib.UE{ID: id, Aspects: map[string]*types.Any{any.TypeUrl: any}},
+					Type: uenib.EventType_NONE,
+					UE:   ue,
 				}
+			case <-ctx.Done():
+				go func() {
+					for range replayCh {
+					}
+				}()
 			}
 		}
+	eventLoop:
+		for {
+			select {
+			case event, ok := <-eventCh:
+				if !ok {
+					break eventLoop
+				}
+				ch <- event
+			case <-ctx.Done():
+				go func() {
+					for range eventCh {
+					}
+				}()
+			}
+		}
+	}()
+
+	watchID := uuid.New()
+	s.watchersMu.Lock()
+	s.watchers[watchID] = eventCh
+	s.watchersMu.Unlock()
+
+	var ues []uenib.UE
+	if watchOpts.replay {
+		s.cacheMu.RLock()
+		ues = make([]uenib.UE, 0, len(s.cache))
+		for _, ue := range s.cache {
+			ues = append(ues, ue)
+		}
+		s.cacheMu.RUnlock()
+	}
+
+	go func() {
+		defer close(replayCh)
+		for _, ue := range ues {
+			replayCh <- ue
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		s.watchersMu.Lock()
+		delete(s.watchers, watchID)
+		s.watchersMu.Unlock()
+		close(eventCh)
 	}()
 	return nil
 }
 
 func (s *atomixStore) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	_ = s.ueAspects.Close(ctx)
+	err := s.ueAspects.Close(ctx)
 	// TODO: Close the go routine
 	defer cancel()
-	return s.ueAspects.Close(ctx)
-}
-
-func decodeAspect(entry _map.Entry) (uenib.ID, *types.Any) {
-	key := strings.SplitN(entry.Key, "/", 2)
-	return uenib.ID(key[0]), &types.Any{TypeUrl: key[1], Value: entry.Value}
-}
-
-func (s *atomixStore) registerAspect(id uenib.ID, aspect string) {
-	s.idToAspectsLock.Lock()
-	defer s.idToAspectsLock.Unlock()
-	if _, ok := s.idToAspects[id]; !ok {
-		s.idToAspects[id] = map[string]bool{}
+	if err != nil {
+		return errors.FromAtomix(err)
 	}
-	s.idToAspects[id][aspect] = true
-}
-
-func (s *atomixStore) unregisterAspect(id uenib.ID, aspect string) {
-	s.idToAspectsLock.Lock()
-	defer s.idToAspectsLock.Unlock()
-	delete(s.idToAspects[id], aspect)
-	if len(s.idToAspects[id]) == 0 {
-		delete(s.idToAspects, id)
-	}
+	return nil
 }
