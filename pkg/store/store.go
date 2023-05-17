@@ -7,15 +7,16 @@ package store
 import (
 	"context"
 	"fmt"
-	"github.com/atomix/go-sdk/pkg/generic"
-	"github.com/atomix/go-sdk/pkg/primitive"
-	"github.com/google/uuid"
 	"io"
 	"sync"
 	"time"
 
+	"github.com/atomix/go-sdk/pkg/primitive"
+	"github.com/atomix/go-sdk/pkg/types"
+	"github.com/google/uuid"
+
 	_map "github.com/atomix/go-sdk/pkg/primitive/map"
-	"github.com/gogo/protobuf/types"
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/onosproject/onos-api/go/onos/uenib"
 	"github.com/onosproject/onos-lib-go/pkg/errors"
 	"github.com/onosproject/onos-lib-go/pkg/logging"
@@ -27,7 +28,7 @@ var log = logging.GetLogger()
 func NewAtomixStore(client primitive.Client) (Store, error) {
 	ueAspects, err := _map.NewBuilder[uenib.ID, *uenib.UE](client, "onos-uenib-objects").
 		Tag("onos-uenib", "objects").
-		Codec(generic.Proto[*uenib.UE](&uenib.UE{})).
+		Codec(types.Proto[*uenib.UE](&uenib.UE{})).
 		Get(context.Background())
 	if err != nil {
 		return nil, errors.FromAtomix(err)
@@ -162,7 +163,7 @@ func (s *atomixStore) watchStoreEvents(entries _map.EntryStream[uenib.ID, *uenib
 			s.cache[ue.ID] = *ue
 			s.cacheMu.Unlock()
 		case *_map.Updated[uenib.ID, *uenib.UE]:
-			ue = e.NewEntry.Value
+			ue = e.Entry.Value
 			eventType = uenib.EventType_UPDATED
 			s.cacheMu.Lock()
 			s.cache[ue.ID] = *ue
@@ -239,7 +240,7 @@ func (s *atomixStore) Get(ctx context.Context, id uenib.ID, aspectTypes ...strin
 		}
 		return nil, err
 	}
-	ue := &uenib.UE{ID: id, Aspects: map[string]*types.Any{}}
+	ue := &uenib.UE{ID: id, Aspects: map[string]*gogotypes.Any{}}
 	if len(aspectTypes) == 0 {
 		return entry.Value, nil
 	}
@@ -292,7 +293,7 @@ func (s *atomixStore) Delete(ctx context.Context, id uenib.ID, aspectTypes ...st
 		return err
 	}
 
-	ue := &uenib.UE{ID: id, Aspects: map[string]*types.Any{}}
+	ue := &uenib.UE{ID: id, Aspects: map[string]*gogotypes.Any{}}
 	for k, v := range entry.Value.Aspects {
 		if !hasAspectTypes(k, aspectTypes) {
 			ue.Aspects[k] = v
@@ -333,7 +334,7 @@ func (s *atomixStore) List(ctx context.Context, aspectTypes []string, ch chan<- 
 				log.Errorf(err.Error())
 				continue
 			}
-			ue := &uenib.UE{ID: entry.Value.ID, Aspects: map[string]*types.Any{}}
+			ue := &uenib.UE{ID: entry.Value.ID, Aspects: map[string]*gogotypes.Any{}}
 			for _, aspectType := range aspectTypes {
 				if v, ok := entry.Value.Aspects[aspectType]; ok {
 					ue.Aspects[aspectType] = v
