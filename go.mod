@@ -30,7 +30,7 @@ require (
 	github.com/Shopify/sarama v1.31.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200428143746-21a406dcc535 // indirect
 	github.com/atomix/atomix/api v1.1.0 // indirect
-	github.com/atomix/atomix/runtime v1.1.0 // indirect
+	github.com/atomix/atomix/runtime v1.1.2 // indirect
 	github.com/atomix/runtime/sdk v0.7.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
