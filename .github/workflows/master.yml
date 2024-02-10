@@ -17,8 +17,7 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: Build
-        run: |
-          CGO_ENABLED=1 go build -o build/_output/onos-uenib ./cmd/onos-uenib
+        run: CGO_ENABLED=1 go build -o build/_output/onos-uenib ./cmd/onos-uenib
 
   lint:
     runs-on: ubuntu-latest
@@ -40,8 +39,7 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: Unit tests
-        run: |
-          go test -race github.com/onosproject/onos-uenib/...
+        run: go test -race github.com/onosproject/onos-uenib/...
 
   docker-build:
     runs-on: ubuntu-latest
