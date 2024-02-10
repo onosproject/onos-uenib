@@ -69,4 +69,4 @@ jobs:
       - name: FOSSA scan
         uses: fossa-contrib/fossa-action@v3
         with:
-          fossa-api-key: 9dc8fa92e3dd565687317beb87b56d89
+          fossa-api-key: 6d304c09a3ec097ba4517724e4a4d17d
