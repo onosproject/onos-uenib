@@ -7,60 +7,57 @@ export GO111MODULE=on
 
 .PHONY: build
 
-ONOS_TOPO_VERSION := latest
+ONOS_UENIB_VERSION ?= latest
 ONOS_PROTOC_VERSION := v0.6.3
 
-build-tools:=$(shell if [ ! -d "./build/build-tools" ]; then cd build && git clone https://github.com/onosproject/build-tools.git; fi)
-include ./build/build-tools/make/onf-common.mk
+GOLANG_CI_VERSION := v1.52.2
 
-mod-update: # @HELP Download the dependencies to the vendor folder
-	go mod tidy
-	go mod vendor
-mod-lint: mod-update # @HELP ensure that the required dependencies are in place
-	# dependencies are vendored, but not committed, go.sum is the only thing we need to check
-	bash -c "diff -u <(echo -n) <(git diff go.sum)"
+all: build docker-build
 
 build: # @HELP build the Go binaries and run all validations (default)
-build:
 	CGO_ENABLED=1 go build -o build/_output/onos-uenib ./cmd/onos-uenib
 
 test: # @HELP run the unit tests and source code validation producing a golang style report
-test: mod-lint build linters license
+test: build lint license
 	go test -race github.com/onosproject/onos-uenib/...
 
-jenkins-test: # @HELP run the unit tests and source code validation producing a junit style report for Jenkins
-jenkins-test: mod-lint build linters license
-	TEST_PACKAGES=github.com/onosproject/onos-uenib/pkg/... ./build/build-tools/build/jenkins/make-unit
-
-helmit-uenib: integration-test-namespace # @HELP run helmit tests locally
-	helmit test -n test ./cmd/onos-uenib-tests --suite uenib
-
-integration-tests: helmit-uenib # @HELP run helmit integration tests locally
-
-onos-uenib-docker: # @HELP build onos-uenib base Docker image
+docker-build-onos-uenib: # @HELP build onos-uenib base Docker image
 	@go mod vendor
 	docker build . -f build/onos-uenib/Dockerfile \
-		-t onosproject/onos-uenib:${ONOS_TOPO_VERSION}
+		-t onosproject/onos-uenib:${ONOS_UENIB_VERSION}
 	@rm -rf vendor
 
-images: # @HELP build all Docker images
-images: build onos-uenib-docker
+docker-build: # @HELP build all Docker images
+docker-build: build docker-build-onos-uenib
 
-kind: # @HELP build Docker images and add them to the currently configured kind cluster
-kind: images
-	@if [ "`kind get clusters`" = '' ]; then echo "no kind cluster found" && exit 1; fi
-	kind load docker-image onosproject/onos-uenib:${ONOS_TOPO_VERSION}
+docker-push-onos-uenib: # @HELP push onos-uenib Docker image
+	docker push onosproject/onos-uenib:${ONOS_UENIB_VERSION}
 
-all: build images
+docker-push: # @HELP push docker images
+docker-push: docker-push-onos-uenib
 
-publish: # @HELP publish version on github and dockerhub
-	./build/build-tools/publish-version ${VERSION} onosproject/onos-uenib
+lint: # @HELP examines Go source code and reports coding problems
+	golangci-lint --version | grep $(GOLANG_CI_VERSION) || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b `go env GOPATH`/bin $(GOLANG_CI_VERSION)
+	golangci-lint run --timeout 15m
 
-jenkins-publish: jenkins-tools # @HELP Jenkins calls this to publish artifacts
-	./build/bin/push-images
-	./build/build-tools/release-merge-commit
-	./build/build-tools/build/docs/push-docs
+license: # @HELP run license checks
+	rm -rf venv
+	python3 -m venv venv
+	. ./venv/bin/activate;\
+	python3 -m pip install --upgrade pip;\
+	python3 -m pip install reuse;\
+	reuse lint
 
-clean:: # @HELP remove all the build artifacts
+check-version: # @HELP check version is duplicated
+	./build/bin/version_check.sh all
+
+clean: # @HELP remove all the build artifacts
 	rm -rf ./build/_output ./vendor ./cmd/onos-uenib/onos-uenib ./cmd/dummy/dummy
 
+help:
+	@grep -E '^.*: *# *@HELP' $(MAKEFILE_LIST) \
+    | sort \
+    | awk ' \
+        BEGIN {FS = ": *# *@HELP"}; \
+        {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}; \
+    '
