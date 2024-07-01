@@ -8,7 +8,7 @@ ENV GO111MODULE=on
 COPY . /go/src/github.com/onosproject/onos-uenib
 RUN cd /go/src/github.com/onosproject/onos-uenib && GOFLAGS=-mod=vendor make build
 
-FROM frolvlad/alpine-glibc:alpine-3.12
+FROM frolvlad/alpine-glibc:alpine-3.20
 
 USER nobody
 
