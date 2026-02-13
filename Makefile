@@ -8,6 +8,10 @@ export GO111MODULE=on
 .PHONY: build
 
 ONOS_UENIB_VERSION ?= latest
+DOCKER_TAG         ?= ${ONOS_UENIB_VERSION}
+DOCKER_REPOSITORY  ?= onosproject/
+DOCKER_REGISTRY    ?= ""
+DOCKER_IMAGENAME   := ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}onos-uenib:${DOCKER_TAG}
 ONOS_PROTOC_VERSION := v0.6.3
 
 GOLANG_CI_VERSION := v1.52.2
@@ -24,14 +28,14 @@ test: build lint license
 docker-build-onos-uenib: # @HELP build onos-uenib base Docker image
 	@go mod vendor
 	docker build . -f build/onos-uenib/Dockerfile \
-		-t onosproject/onos-uenib:${ONOS_UENIB_VERSION}
+		-t ${DOCKER_IMAGENAME}
 	@rm -rf vendor
 
 docker-build: # @HELP build all Docker images
 docker-build: build docker-build-onos-uenib
 
 docker-push-onos-uenib: # @HELP push onos-uenib Docker image
-	docker push onosproject/onos-uenib:${ONOS_UENIB_VERSION}
+	docker push ${DOCKER_IMAGENAME}
 
 docker-push: # @HELP push docker images
 docker-push: docker-push-onos-uenib
